@@ -47,22 +47,20 @@
 		{
 			"name": "params",
 			"type": "any",
-			"description" : "Parameters for query.",
+			"description" : "Parameters for query",
 			"required": false
 		}
 	],
 	"output": [
 		{
-			"name": "columnNames",
-			"type": "any",
-			"description" : "Column Names ",
-			"required": false
+			"name": "eof",
+			"type": "bool",
+			"description" : "False if more data is available"
 		},
 		{
 			"name": "results",
 			"type": "any",
-			"description" : "Result of SQL Query.",
-			"required": false
+			"description" : "Result of SQL Query"
 		}
 	]
 }

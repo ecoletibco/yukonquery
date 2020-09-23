@@ -16,8 +16,8 @@ type Input struct {
 }
 
 type Output struct {
-	ColumnNames []interface{} `md:"columnNames"`
-	Results     interface{}   `md:"results"`
+	EOF     bool                     `md:"eof"`
+	Results []map[string]interface{} `md:"results"`
 }
 
 // FromMap converts the values from a map into the struct Input

@@ -162,13 +162,19 @@ func TestEvalSimpleSelect(t *testing.T) {
 
 	tc := test.NewActivityContext(act.Metadata())
 
-	//setup attrs
-	tc.SetInput("uuid", "BPId")
-
 	//eval
-	act.Eval(tc)
-	assert.NotNil(t, tc.GetOutput("uuid"))
-	assert.NotNil(t, tc.GetOutput("data"))
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 250)
 }
 
 func TestEvalBadQuery(t *testing.T) {
@@ -179,7 +185,7 @@ func TestEvalBadQuery(t *testing.T) {
 		UcsConnectionToken: TestUcsConnectionToken,
 		ConnectorName:      TestConnectorName,
 		ConnectorProps:     TestConnectorProps,
-		Query:              "BadQuery",
+		Query:              "select * from BadTableName",
 	}
 
 	mf := mapper.NewFactory(resolve.GetBasicResolver())
@@ -189,11 +195,44 @@ func TestEvalBadQuery(t *testing.T) {
 
 	tc := test.NewActivityContext(act.Metadata())
 
-	//setup attrs
-	tc.SetInput("uuid", "bad1e6e5-f722-45e9-af49-e5380cf14003")
-
 	//eval
-	act.Eval(tc)
-	assert.NotNil(t, tc.GetOutput("uuid"))
-	assert.NotNil(t, tc.GetOutput("data"))
+	done, err := act.Eval(tc)
+	assert.False(t, done)
+	assert.NotNil(t, err)
+}
+
+func TestParseQuery(t *testing.T) {
+
+	// basic select * query
+	_, err := parseQuery("select * from entity2")
+	assert.Nil(t, err)
+
+	// basic select column query
+	_, err = parseQuery("select index from entity2")
+	assert.Nil(t, err)
+
+	// basic select columns query
+	_, err = parseQuery("select index, prop1 from entity2")
+	assert.Nil(t, err)
+
+	// blank query
+	_, err = parseQuery("")
+	assert.NotNil(t, err)
+
+	// only select
+	_, err = parseQuery("select")
+	assert.NotNil(t, err)
+
+	// no columns
+	_, err = parseQuery("select from entity2")
+	assert.NotNil(t, err)
+
+	// no from
+	_, err = parseQuery("select *")
+	assert.NotNil(t, err)
+
+	// no table
+	_, err = parseQuery("select * from")
+	assert.NotNil(t, err)
+
 }

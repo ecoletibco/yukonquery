@@ -29,7 +29,7 @@ flogo install github.com/ecoletibco/yukonquery
 ### Output:
 | Name        | Type  | Description
 |:---         | :---  | :---    
-| columnNames | array |  The names of the result columns
+| eof         | bool  |  False if more data is available
 | results     | array |  The results
 
 ## Examples
