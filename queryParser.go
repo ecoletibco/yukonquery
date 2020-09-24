@@ -37,14 +37,12 @@ const (
 )
 
 type Query struct {
-	ConnectionId    string
-	ConnectionToken string
-	Select          string
-	Top             string
-	Skip            string
-	From            string
-	Where           string
-	Orderby         string
+	Select  string
+	Top     string
+	Skip    string
+	From    string
+	Where   string
+	Orderby string
 }
 
 func parseQuery(queryString string) (*Query, error) {

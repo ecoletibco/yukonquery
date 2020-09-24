@@ -21,10 +21,10 @@ type YukonConnection struct {
 }
 
 type UcsConnection struct {
-	Id              string            `json:"id"`
-	Token           string            `json:"token"`
-	IsConnected     bool              `json:"isConnected"`
-	Error           string            `json:"error"`	
+	Id          string `json:"id"`
+	Token       string `json:"token"`
+	IsConnected bool   `json:"isConnected"`
+	Error       string `json:"error"`
 }
 
 type YukonQueryResponse struct {
@@ -34,9 +34,10 @@ type YukonQueryResponse struct {
 }
 
 type Activity struct {
-	settings *Settings
-	client   *http.Client
-	queryObj Query
+	settings        *Settings
+	client          *http.Client
+	connectionId    string
+	connectionToken string
 }
 
 func init() {
@@ -68,18 +69,11 @@ func New(ctx activity.InitContext) (activity.Activity, error) {
 		return nil, err
 	}
 
-	queryObj, err := parseQuery(s.Query)
-	if err != nil {
-		return nil, err
-	}
-
-	queryObj.ConnectionId = connectionId
-	queryObj.ConnectionToken = connectionToken
-
 	act := &Activity{
-		settings: s,
-		client:   &client,
-		queryObj: *queryObj,
+		settings:        s,
+		client:          &client,
+		connectionId:    connectionId,
+		connectionToken: connectionToken,
 	}
 
 	return act, nil
@@ -87,7 +81,7 @@ func New(ctx activity.InitContext) (activity.Activity, error) {
 
 func (a *Activity) Cleanup() error {
 
-	if a.queryObj.ConnectionId != "" {
+	if a.connectionId != "" {
 		log.RootLogger().Tracef("cleaning up Yukon Query activity")
 	}
 
@@ -103,7 +97,12 @@ func (a *Activity) Eval(ctx activity.Context) (done bool, err error) {
 		return false, err
 	}
 
-	queryResponse, err := executeQuery(*a.client, a.settings, a.queryObj)
+	queryObj, err := parseQuery(a.settings.Query)
+	if err != nil {
+		return false, err
+	}
+
+	queryResponse, err := a.executeQuery(*queryObj)
 	if err != nil {
 		return false, err
 	}
@@ -198,12 +197,12 @@ func connectViaUCS(client http.Client, s *Settings) (string, string, error) {
 	return connectionId, connectionToken, nil
 }
 
-func executeQuery(client http.Client, s *Settings, queryObject Query) (*YukonQueryResponse, error) {
+func (a *Activity) executeQuery(queryObject Query) (*YukonQueryResponse, error) {
 
 	// "/connections/e40b3c7f-bfe5-4f41-aabc-36b086aae1fc/query/account?$select=*&$top=5"
 
-	baseUrl := s.URL
-	uri := baseUrl + fmt.Sprintf("/connections/%s/query/%s?$select=%s", queryObject.ConnectionId, queryObject.From, queryObject.Select)
+	baseUrl := a.settings.URL
+	uri := baseUrl + fmt.Sprintf("/connections/%s/query/%s?$select=%s", a.connectionId, queryObject.From, queryObject.Select)
 
 	if queryObject.Top != "" {
 		uri += fmt.Sprintf("&$top=%s", queryObject.Top)
@@ -220,9 +219,9 @@ func executeQuery(client http.Client, s *Settings, queryObject Query) (*YukonQue
 
 	headers := make(map[string]string)
 	headers["Content-Type"] = "application/json"
-	headers["Token"] = queryObject.ConnectionToken
+	headers["Token"] = a.connectionToken
 
-	resp, err := getRestResponse(client, MethodGET, uri, headers, nil)
+	resp, err := getRestResponse(*a.client, MethodGET, uri, headers, nil)
 	if err != nil {
 		return nil, err
 	}
