@@ -54,6 +54,14 @@ func parseQuery(queryString string, params map[string]interface{}) (*Query, erro
 		return nil, fmt.Errorf("'query' is required")
 	}
 
+	tmp := strings.Split(queryString, " ")
+	var queryParts []string
+	for _, queryPart := range tmp {
+		if strings.TrimSpace(queryPart) != "" {
+			queryParts = append(queryParts, queryPart)
+		}
+	}
+
 	selectIndex := -1
 	topIndex := -1
 	skipIndex := -1
@@ -61,7 +69,6 @@ func parseQuery(queryString string, params map[string]interface{}) (*Query, erro
 	whereIndex := -1
 	orderbyIndex := -1
 
-	queryParts := strings.Split(queryString, " ")
 	for i, queryPart := range queryParts {
 		switch strings.ToLower(queryPart) {
 		case SELECT:
@@ -91,19 +98,51 @@ func parseQuery(queryString string, params map[string]interface{}) (*Query, erro
 		return nil, fmt.Errorf("invalid query: table name is required")
 	}
 
-	if topIndex != -1 {
-		return nil, fmt.Errorf("invalid query: top not supported")
-	}
-
-	if skipIndex != -1 {
-		return nil, fmt.Errorf("invalid query: skip not supported")
-	}
-
 	if orderbyIndex != -1 {
 		return nil, fmt.Errorf("invalid query: orderby not supported")
 	}
 
 	var queryObj = Query{}
+
+	if topIndex != -1 {
+		topValueIndex := topIndex + 1
+		if topValueIndex >= len(queryParts) {
+			return nil, fmt.Errorf("invalid query: value not found for top")
+		}
+		topValue := queryParts[topValueIndex]
+		intTopValue, err := coerce.ToInt(topValue)
+		if err != nil {
+			return nil, fmt.Errorf("invalid query: invalid value top '%s'", topValue)
+		}
+		topValue, _ = coerce.ToString(intTopValue)
+		queryObj.Top = topValue
+
+		if topIndex < fromIndex {
+			if topValueIndex > selectIndex {
+				selectIndex = topValueIndex
+			}
+		}
+	}
+
+	if skipIndex != -1 {
+		skipValueIndex := skipIndex + 1
+		if skipValueIndex >= len(queryParts) {
+			return nil, fmt.Errorf("invalid query: value not found for skip")
+		}
+		skipValue := queryParts[skipValueIndex]
+		intSkipValue, err := coerce.ToInt(skipValue)
+		if err != nil {
+			return nil, fmt.Errorf("invalid query: invalid value skip '%s'", skipValue)
+		}
+		skipValue, _ = coerce.ToString(intSkipValue)
+		queryObj.Skip = skipValue
+
+		if skipIndex < fromIndex {
+			if skipValueIndex > selectIndex {
+				selectIndex = skipValueIndex
+			}
+		}
+	}
 
 	columnNames, err := getColumnNames(queryParts[selectIndex+1:])
 	if err != nil {
@@ -155,9 +194,7 @@ func getColumnNames(subParts []string) (string, error) {
 
 	columnNames := ""
 	for _, queryPart := range subParts {
-		if queryPart == "" {
-			continue
-		} else if queryPart == ALL {
+		if queryPart == ALL {
 			columnNames = ALL
 			break
 		} else if isDelimiter(queryPart) {
@@ -179,9 +216,7 @@ func getTableName(subParts []string) (string, error) {
 
 	tableName := ""
 	for _, queryPart := range subParts {
-		if queryPart == "" {
-			continue
-		} else if isDelimiter(queryPart) {
+		if isDelimiter(queryPart) {
 			break
 		} else {
 			tableName = queryPart
@@ -204,9 +239,7 @@ func getWhere(subParts []string) (string, error) {
 
 	for _, queryPart := range subParts {
 
-		if queryPart == "" {
-			continue
-		} else if isDelimiter(queryPart) {
+		if isDelimiter(queryPart) {
 			break
 		} else {
 			if left == "" {

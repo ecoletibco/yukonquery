@@ -177,6 +177,113 @@ func TestEvalSimpleSelectAll(t *testing.T) {
 	assert.True(t, len(results) == 250)
 }
 
+func TestEvalSimpleSelectTop10(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select top 10 * from entity2",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 10)
+}
+
+func TestEvalSimpleSelectSkip10(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select skip 10 * from entity2",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 250)
+
+	firstResult := results[0].(map[string]interface{})
+	firstIndex := firstResult["Index"].(float64)
+	assert.True(t, firstIndex == 11)
+}
+
+func TestEvalSimpleSelectTop10Skip10(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select top 10 skip 10 * from entity2",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 10)
+
+	firstResult := results[0].(map[string]interface{})
+	firstIndex := firstResult["Index"].(float64)
+	assert.True(t, firstIndex == 11)
+}
+
 func TestEvalSimpleSelect2Columns(t *testing.T) {
 
 	settings := &Settings{
@@ -377,16 +484,44 @@ func TestParseQuery(t *testing.T) {
 	_, err := parseQuery("select * from entity2", nil)
 	assert.Nil(t, err)
 
-	// basic select column query
+	// messy select * query
+	_, err = parseQuery(" select  *  from  entity2 ", nil)
+	assert.Nil(t, err)
+
+	// select column query
 	_, err = parseQuery("select index from entity2", nil)
 	assert.Nil(t, err)
 
-	// basic select columns query
+	// select columns query
 	_, err = parseQuery("select index, prop1 from entity2", nil)
+	assert.Nil(t, err)
+
+	// select * query with top
+	_, err = parseQuery("select top 100 * from entity2", nil)
+	assert.Nil(t, err)
+
+	// select * query with skip first
+	_, err = parseQuery("select skip 100 * from entity2", nil)
+	assert.Nil(t, err)
+
+	// select * query with skip last
+	_, err = parseQuery("select * from entity2 skip 100", nil)
+	assert.Nil(t, err)
+
+	// select * query with top and skip
+	_, err = parseQuery("select top 100 skip 100 * from entity2", nil)
 	assert.Nil(t, err)
 
 	// select * query with where
 	_, err = parseQuery("select * from entity2 where index < 5", nil)
+	assert.Nil(t, err)
+
+	// select * query with where with and and or
+	_, err = parseQuery("select * from entity2 where index < 5 or prop1 == 'xxxxx'", nil)
+	assert.Nil(t, err)
+
+	// messy big fat pig query
+	_, err = parseQuery(" Select top  100  skip  100  index , prop1 from  entity2 where index < 5 or prop1 == 'xxxxx'  ", nil)
 	assert.Nil(t, err)
 
 	// blank query
