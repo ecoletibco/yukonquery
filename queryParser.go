@@ -8,15 +8,15 @@ import (
 )
 
 const (
-	SELECT    = "select"
-	ALL       = "*"
-	TOP       = "top"
-	SKIP      = "skip"
-	FROM      = "from"
-	WHERE     = "where"
-	ORDERBY   = "orderby"
-	ASCENDING = "asc"
-	DECENDING = "desc"
+	SELECT     = "select"
+	ALL        = "*"
+	TOP        = "top"
+	SKIP       = "skip"
+	FROM       = "from"
+	WHERE      = "where"
+	ORDERBY    = "orderby"
+	ASCENDING  = "asc"
+	DESCENDING = "desc"
 )
 
 var OpMap = map[string]string{
@@ -98,10 +98,6 @@ func parseQuery(queryString string, params map[string]interface{}) (*Query, erro
 		return nil, fmt.Errorf("invalid query: table name is required")
 	}
 
-	if orderbyIndex != -1 {
-		return nil, fmt.Errorf("invalid query: orderby not supported")
-	}
-
 	var queryObj = Query{}
 
 	if topIndex != -1 {
@@ -173,6 +169,24 @@ func parseQuery(queryString string, params map[string]interface{}) (*Query, erro
 		}
 
 		queryObj.Where = where
+	}
+
+	if orderbyIndex != -1 {
+		orderbyValueIndex := orderbyIndex + 1
+		if orderbyValueIndex >= len(queryParts) {
+			return nil, fmt.Errorf("invalid query: value not found for orderby")
+		}
+		orderbyValue := queryParts[orderbyValueIndex]
+
+		orderbyValueIndex += 1
+		if orderbyValueIndex < len(queryParts) {
+			ascdesc := strings.ToLower(queryParts[orderbyValueIndex])
+			if ascdesc == ASCENDING || ascdesc == DESCENDING {
+				orderbyValue = fmt.Sprintf("%s %s", orderbyValue, ascdesc)
+			}
+		}
+
+		queryObj.Orderby = orderbyValue
 	}
 
 	return &queryObj, nil

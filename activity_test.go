@@ -478,6 +478,117 @@ func TestEvalSelectWithWhereWithParam(t *testing.T) {
 	assert.True(t, len(results) == 42)
 }
 
+func TestEvalSimpleSelectWithOrderBy(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select * from entity2 orderby index",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 250)
+
+	firstResult := results[0].(map[string]interface{})
+	firstIndex := firstResult["Index"].(float64)
+	assert.True(t, firstIndex == 1) // benchmark does not support orderby
+}
+
+func TestEvalSimpleSelectWithOrderByAsc(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select * from entity2 orderby index asc",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 250)
+
+	firstResult := results[0].(map[string]interface{})
+	firstIndex := firstResult["Index"].(float64)
+	assert.True(t, firstIndex == 1) // benchmark does not support orderby
+}
+
+func TestEvalSimpleSelectWithOrderByDesc(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select * from entity2 orderby index desc",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 250)
+
+	firstResult := results[0].(map[string]interface{})
+	firstIndex := firstResult["Index"].(float64)
+	assert.True(t, firstIndex == 1) // benchmark does not support orderby
+}
+
 func TestParseQuery(t *testing.T) {
 
 	// basic select * query
@@ -520,8 +631,20 @@ func TestParseQuery(t *testing.T) {
 	_, err = parseQuery("select * from entity2 where index < 5 or prop1 == 'xxxxx'", nil)
 	assert.Nil(t, err)
 
+	// select * query with orderby
+	_, err = parseQuery("select * from entity2 orderby index", nil)
+	assert.Nil(t, err)
+
+	// select * query with orderby asc
+	_, err = parseQuery("select * from entity2 orderby index asc", nil)
+	assert.Nil(t, err)
+
+	// select * query with orderby desc
+	_, err = parseQuery("select * from entity2 orderby index desc", nil)
+	assert.Nil(t, err)
+
 	// messy big fat pig query
-	_, err = parseQuery(" Select top  100  skip  100  index , prop1 from  entity2 where index < 5 or prop1 == 'xxxxx'  ", nil)
+	_, err = parseQuery(" Select top  100  skip  100  index , prop1 from  entity2 where index < 5 or prop1 == 'xxxxx'  orderby index   desc  ", nil)
 	assert.Nil(t, err)
 
 	// blank query
@@ -544,6 +667,13 @@ func TestParseQuery(t *testing.T) {
 	_, err = parseQuery("select * from", nil)
 	assert.NotNil(t, err)
 
+	// no where values
+	_, err = parseQuery("select * from entity2 where", nil)
+	assert.NotNil(t, err)
+
+	// no orderby values
+	_, err = parseQuery("select * from entity2 orderby", nil)
+	assert.NotNil(t, err)
 }
 
 func TestBuildWherePart(t *testing.T) {
