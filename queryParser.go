@@ -2,6 +2,7 @@ package yukonquery
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -17,19 +18,22 @@ const (
 	DECENDING = "desc"
 )
 
-const (
-	EQUAL            = "eq"
-	NOT_EQUAL        = "ne"
-	GREATER          = "gt"
-	GREATER_OR_EQUAL = "ge"
-	LESSER           = "lt"
-	LESSER_OR_EQUAL  = "le"
-)
+var OpMap = map[string]string{
+	"=":  "eq",
+	"==": "eq",
+	"!=": "ne",
+	"<>": "ne",
+	">":  "gt",
+	">=": "ge",
+	"!<": "ge",
+	"<":  "lt",
+	"<=": "le",
+	"!>": "le",
+}
 
 const (
 	AND = "and"
 	OR  = "or"
-	NOT = "not"
 )
 
 type Query struct {
@@ -43,15 +47,13 @@ type Query struct {
 	Orderby         string
 }
 
-func parseQuery(queryString string) (Query, error) {
-
-	var queryObj = Query{}
+func parseQuery(queryString string) (*Query, error) {
 
 	queryString = strings.ReplaceAll(queryString, ",", " ")
 	queryString = strings.TrimSpace(queryString)
 	queryString = strings.ToLower(queryString)
 	if queryString == "" {
-		return queryObj, fmt.Errorf("'query' is required")
+		return nil, fmt.Errorf("'query' is required")
 	}
 
 	selectIndex := -1
@@ -80,36 +82,57 @@ func parseQuery(queryString string) (Query, error) {
 	}
 
 	if selectIndex != 0 {
-		return queryObj, fmt.Errorf("invalid query: only select statements are supported")
+		return nil, fmt.Errorf("invalid query: only select statements are supported")
 	}
 
 	if fromIndex == -1 {
-		return queryObj, fmt.Errorf("invalid query: a from clause is required")
+		return nil, fmt.Errorf("invalid query: a from clause is required")
 	}
 
 	if fromIndex+1 >= len(queryParts) {
-		return queryObj, fmt.Errorf("invalid query: table name is required")
+		return nil, fmt.Errorf("invalid query: table name is required")
 	}
 
 	if topIndex != -1 {
-		return queryObj, fmt.Errorf("invalid query: top not supported")
+		return nil, fmt.Errorf("invalid query: top not supported")
 	}
 
 	if skipIndex != -1 {
-		return queryObj, fmt.Errorf("invalid query: skip not supported")
-	}
-
-	if whereIndex != -1 {
-		return queryObj, fmt.Errorf("invalid query: where not supported")
+		return nil, fmt.Errorf("invalid query: skip not supported")
 	}
 
 	if orderbyIndex != -1 {
-		return queryObj, fmt.Errorf("invalid query: orderby not supported")
+		return nil, fmt.Errorf("invalid query: orderby not supported")
 	}
 
-	// parse for column names
+	var queryObj = Query{}
+
+	columnNames, err := getColumnNames(queryParts[selectIndex+1:])
+	if err != nil {
+		return nil, err
+	}
+	queryObj.Select = url.QueryEscape(columnNames)
+
+	tableName, err := getTableName(queryParts[fromIndex+1:])
+	if err != nil {
+		return nil, err
+	}
+	queryObj.From = url.QueryEscape(tableName)
+
+	if whereIndex != -1 {
+		where, err := getWhere(queryParts[whereIndex+1:])
+		if err != nil {
+			return nil, err
+		}
+		queryObj.Where = url.QueryEscape(where)
+	}
+
+	return &queryObj, nil
+}
+
+func getColumnNames(subParts []string) (string, error) {
+
 	columnNames := ""
-	subParts := queryParts[selectIndex+1:]
 	for _, queryPart := range subParts {
 		if queryPart == "" {
 			continue
@@ -134,13 +157,14 @@ func parseQuery(queryString string) (Query, error) {
 		}
 	}
 	if columnNames == "" {
-		return queryObj, fmt.Errorf("invalid query: select requires column list or * for all")
+		return "", fmt.Errorf("invalid query: select requires column list or * for all")
 	}
-	queryObj.Select = columnNames
+	return columnNames, nil
+}
 
-	// parse for table name
+func getTableName(subParts []string) (string, error) {
+
 	tableName := ""
-	subParts = queryParts[fromIndex+1:]
 	for _, queryPart := range subParts {
 		if queryPart == "" {
 			continue
@@ -161,9 +185,91 @@ func parseQuery(queryString string) (Query, error) {
 		}
 	}
 	if tableName == "" {
-		return queryObj, fmt.Errorf("invalid query: table name not found")
+		return "", fmt.Errorf("invalid query: table name not found")
 	}
-	queryObj.From = tableName
+	return tableName, nil
+}
 
-	return queryObj, nil
+func getWhere(subParts []string) (string, error) {
+
+	where := ""
+
+	left := ""
+	op := ""
+	right := ""
+	logicOp := ""
+
+	for _, queryPart := range subParts {
+		if queryPart == "" {
+			continue
+		} else if queryPart == ALL {
+			break
+		} else if queryPart == TOP {
+			break
+		} else if queryPart == SKIP {
+			break
+		} else if queryPart == FROM {
+			break
+		} else if queryPart == WHERE {
+			break
+		} else if queryPart == ORDERBY {
+			break
+		} else {
+			if left == "" {
+				left = queryPart
+			} else if op == "" {
+				op = queryPart
+			} else if right == "" {
+				right = queryPart
+			} else {
+				logicOp = queryPart
+
+				wherePart, err := buildWherePart(left, op, right, logicOp)
+				if err != nil {
+					return "", err
+				}
+
+				where += wherePart
+
+				left = ""
+				op = ""
+				right = ""
+				logicOp = ""
+			}
+		}
+	}
+
+	if left != "" {
+		wherePart, err := buildWherePart(left, op, right, logicOp)
+		if err != nil {
+			return "", err
+		}
+
+		where += wherePart
+	}
+
+	where = strings.TrimSpace(where)
+
+	if where == "" {
+		return "", fmt.Errorf("invalid query: empty where clause")
+	}
+	return where, nil
+}
+
+func buildWherePart(left string, op string, right string, logicOp string) (string, error) {
+
+	if left == "" || op == "" || right == "" {
+		return "", fmt.Errorf("invalid query: invalid where clause '%s %s %s'", left, op, right)
+	}
+
+	opStr, ok := OpMap[op]
+	if ok == false {
+		return "", fmt.Errorf("invalid query: unknown operator '%s %s %s'", left, op, right)
+	}
+
+	if logicOp != "" && logicOp != AND && logicOp != OR {
+		return "", fmt.Errorf("invalid query: unknown logical operator '%s'", logicOp)
+	}
+
+	return fmt.Sprintf("%s %s %s %s ", left, opStr, right, logicOp), nil
 }

@@ -20,6 +20,13 @@ type YukonConnection struct {
 	Error           string            `json:"error"`
 }
 
+type UcsConnection struct {
+	Id              string            `json:"id"`
+	Token           string            `json:"token"`
+	IsConnected     bool              `json:"isConnected"`
+	Error           string            `json:"error"`	
+}
+
 type YukonQueryResponse struct {
 	Id      string        `json:"id"`
 	EOF     bool          `json:"eof"`
@@ -72,7 +79,7 @@ func New(ctx activity.InitContext) (activity.Activity, error) {
 	act := &Activity{
 		settings: s,
 		client:   &client,
-		queryObj: queryObj,
+		queryObj: *queryObj,
 	}
 
 	return act, nil

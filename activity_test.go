@@ -144,7 +144,7 @@ func TestSettings(t *testing.T) {
 	*/
 }
 
-func TestEvalSimpleSelect(t *testing.T) {
+func TestEvalSimpleSelectAll(t *testing.T) {
 
 	settings := &Settings{
 		URL:                TestUrl,
@@ -177,7 +177,40 @@ func TestEvalSimpleSelect(t *testing.T) {
 	assert.True(t, len(results) == 250)
 }
 
-func TestEvalBadQuery(t *testing.T) {
+func TestEvalSimpleSelect2Columns(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select index, prop1 from entity2",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == false)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 250)
+}
+
+func TestEvalBadTableName(t *testing.T) {
 
 	settings := &Settings{
 		URL:                TestUrl,
@@ -199,6 +232,72 @@ func TestEvalBadQuery(t *testing.T) {
 	done, err := act.Eval(tc)
 	assert.False(t, done)
 	assert.NotNil(t, err)
+}
+
+func TestEvalSelectWithSimpleWhere(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select index, prop1 from entity2 where index < 10",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == true)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 10)
+}
+
+func TestEvalSelectWithWhereWithAnd(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select * from entity2 where index < 10 and prop2 != 'xxxxxxx'",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == true)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 0) // looks to be a benchmark connector issue?
 }
 
 func TestParseQuery(t *testing.T) {
@@ -235,4 +334,63 @@ func TestParseQuery(t *testing.T) {
 	_, err = parseQuery("select * from")
 	assert.NotNil(t, err)
 
+}
+
+func TestBuildWherePart(t *testing.T) {
+
+	// valid
+	_, err := buildWherePart("a", "=", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "==", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "!=", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "<>", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", ">", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "<", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", ">=", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "<=", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "!>", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "!<", "b", "")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "=", "b", "and")
+	assert.Nil(t, err)
+
+	_, err = buildWherePart("a", "=", "b", "or")
+	assert.Nil(t, err)
+
+	// invalid
+	_, err = buildWherePart("", "", "", "")
+	assert.NotNil(t, err)
+
+	_, err = buildWherePart("a", "", "", "")
+	assert.NotNil(t, err)
+
+	_, err = buildWherePart("a", "=", "", "")
+	assert.NotNil(t, err)
+
+	_, err = buildWherePart("a", "", "b", "")
+	assert.NotNil(t, err)
+
+	_, err = buildWherePart("a", "??", "b", "")
+	assert.NotNil(t, err)
+
+	_, err = buildWherePart("a", "=", "b", "??")
+	assert.NotNil(t, err)
 }
