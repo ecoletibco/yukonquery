@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 
 	"github.com/project-flogo/core/activity"
 	"github.com/project-flogo/core/data/metadata"
@@ -97,7 +98,7 @@ func (a *Activity) Eval(ctx activity.Context) (done bool, err error) {
 		return false, err
 	}
 
-	queryObj, err := parseQuery(a.settings.Query)
+	queryObj, err := parseQuery(a.settings.Query, in.Params)
 	if err != nil {
 		return false, err
 	}
@@ -199,10 +200,8 @@ func connectViaUCS(client http.Client, s *Settings) (string, string, error) {
 
 func (a *Activity) executeQuery(queryObject Query) (*YukonQueryResponse, error) {
 
-	// "/connections/e40b3c7f-bfe5-4f41-aabc-36b086aae1fc/query/account?$select=*&$top=5"
-
 	baseUrl := a.settings.URL
-	uri := baseUrl + fmt.Sprintf("/connections/%s/query/%s?$select=%s", a.connectionId, queryObject.From, queryObject.Select)
+	uri := baseUrl + fmt.Sprintf("/connections/%s/query/%s?$select=%s", a.connectionId, queryObject.From, url.QueryEscape(queryObject.Select))
 
 	if queryObject.Top != "" {
 		uri += fmt.Sprintf("&$top=%s", queryObject.Top)
@@ -211,10 +210,10 @@ func (a *Activity) executeQuery(queryObject Query) (*YukonQueryResponse, error) 
 		uri += fmt.Sprintf("&$skip=%s", queryObject.Skip)
 	}
 	if queryObject.Where != "" {
-		uri += fmt.Sprintf("&$filter=%s", queryObject.Where)
+		uri += fmt.Sprintf("&$filter=%s", url.QueryEscape(queryObject.Where))
 	}
 	if queryObject.Orderby != "" {
-		uri += fmt.Sprintf("&$orderby=%s", queryObject.Orderby)
+		uri += fmt.Sprintf("&$orderby=%s", url.QueryEscape(queryObject.Orderby))
 	}
 
 	headers := make(map[string]string)

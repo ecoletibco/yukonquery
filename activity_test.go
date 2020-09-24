@@ -152,7 +152,7 @@ func TestEvalSimpleSelectAll(t *testing.T) {
 		UcsConnectionToken: TestUcsConnectionToken,
 		ConnectorName:      TestConnectorName,
 		ConnectorProps:     TestConnectorProps,
-		Query:              TestQuery,
+		Query:              "select * from entity2",
 	}
 
 	mf := mapper.NewFactory(resolve.GetBasicResolver())
@@ -300,38 +300,113 @@ func TestEvalSelectWithWhereWithAnd(t *testing.T) {
 	assert.True(t, len(results) == 0) // looks to be a benchmark connector issue?
 }
 
+func TestEvalSelectWithWhereWithAndMixedCase(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "SELECT * FROM Entity2 WHERE Index < 10 AND Prop2 != 'xxxxxxx'",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == true)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 0) // looks to be a benchmark connector issue?
+}
+
+func TestEvalSelectWithWhereWithParam(t *testing.T) {
+
+	settings := &Settings{
+		URL:                TestUrl,
+		UcsConnectionId:    TestUcsConnectionId,
+		UcsConnectionToken: TestUcsConnectionToken,
+		ConnectorName:      TestConnectorName,
+		ConnectorProps:     TestConnectorProps,
+		Query:              "select * from entity2 where index < :MaxIndex",
+	}
+
+	mf := mapper.NewFactory(resolve.GetBasicResolver())
+	iCtx := test.NewActivityInitContext(settings, mf)
+	act, err := New(iCtx)
+	assert.Nil(t, err)
+
+	tc := test.NewActivityContext(act.Metadata())
+
+	params := map[string]interface{}{
+		"MaxIndex": 42,
+	}
+	tc.SetInput("params", params)
+
+	//eval
+	done, err := act.Eval(tc)
+	assert.True(t, done)
+	assert.Nil(t, err)
+
+	assert.NotNil(t, tc.GetOutput("eof"))
+	assert.NotNil(t, tc.GetOutput("results"))
+
+	eof := tc.GetOutput("eof").(bool)
+	assert.True(t, eof == true)
+
+	results := tc.GetOutput("results").([]interface{})
+	assert.True(t, len(results) == 42)
+}
+
 func TestParseQuery(t *testing.T) {
 
 	// basic select * query
-	_, err := parseQuery("select * from entity2")
+	_, err := parseQuery("select * from entity2", nil)
 	assert.Nil(t, err)
 
 	// basic select column query
-	_, err = parseQuery("select index from entity2")
+	_, err = parseQuery("select index from entity2", nil)
 	assert.Nil(t, err)
 
 	// basic select columns query
-	_, err = parseQuery("select index, prop1 from entity2")
+	_, err = parseQuery("select index, prop1 from entity2", nil)
+	assert.Nil(t, err)
+
+	// select * query with where
+	_, err = parseQuery("select * from entity2 where index < 5", nil)
 	assert.Nil(t, err)
 
 	// blank query
-	_, err = parseQuery("")
+	_, err = parseQuery("", nil)
 	assert.NotNil(t, err)
 
 	// only select
-	_, err = parseQuery("select")
+	_, err = parseQuery("select", nil)
 	assert.NotNil(t, err)
 
 	// no columns
-	_, err = parseQuery("select from entity2")
+	_, err = parseQuery("select from entity2", nil)
 	assert.NotNil(t, err)
 
 	// no from
-	_, err = parseQuery("select *")
+	_, err = parseQuery("select *", nil)
 	assert.NotNil(t, err)
 
 	// no table
-	_, err = parseQuery("select * from")
+	_, err = parseQuery("select * from", nil)
 	assert.NotNil(t, err)
 
 }

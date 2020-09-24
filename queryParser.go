@@ -2,8 +2,9 @@ package yukonquery
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
+
+	"github.com/project-flogo/core/data/coerce"
 )
 
 const (
@@ -45,11 +46,10 @@ type Query struct {
 	Orderby string
 }
 
-func parseQuery(queryString string) (*Query, error) {
+func parseQuery(queryString string, params map[string]interface{}) (*Query, error) {
 
 	queryString = strings.ReplaceAll(queryString, ",", " ")
 	queryString = strings.TrimSpace(queryString)
-	queryString = strings.ToLower(queryString)
 	if queryString == "" {
 		return nil, fmt.Errorf("'query' is required")
 	}
@@ -63,7 +63,7 @@ func parseQuery(queryString string) (*Query, error) {
 
 	queryParts := strings.Split(queryString, " ")
 	for i, queryPart := range queryParts {
-		switch queryPart {
+		switch strings.ToLower(queryPart) {
 		case SELECT:
 			selectIndex = i
 		case TOP:
@@ -109,23 +109,46 @@ func parseQuery(queryString string) (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	queryObj.Select = url.QueryEscape(columnNames)
+	queryObj.Select = columnNames
 
 	tableName, err := getTableName(queryParts[fromIndex+1:])
 	if err != nil {
 		return nil, err
 	}
-	queryObj.From = url.QueryEscape(tableName)
+	queryObj.From = tableName
 
 	if whereIndex != -1 {
 		where, err := getWhere(queryParts[whereIndex+1:])
 		if err != nil {
 			return nil, err
 		}
-		queryObj.Where = url.QueryEscape(where)
+
+		for param, value := range params {
+			strParam := ":" + param
+			strValue, _ := coerce.ToString(value)
+			originalWhere := where
+			where = strings.ReplaceAll(where, strParam, strValue)
+			if where == originalWhere {
+				return nil, fmt.Errorf("invalid query: input param '%s' not found in query", param)
+			}
+		}
+
+		queryObj.Where = where
 	}
 
 	return &queryObj, nil
+}
+
+func isDelimiter(queryPart string) bool {
+
+	lowerQueryPart := strings.ToLower(queryPart)
+
+	return lowerQueryPart == SELECT ||
+		lowerQueryPart == TOP ||
+		lowerQueryPart == SKIP ||
+		lowerQueryPart == FROM ||
+		lowerQueryPart == WHERE ||
+		lowerQueryPart == ORDERBY
 }
 
 func getColumnNames(subParts []string) (string, error) {
@@ -137,15 +160,7 @@ func getColumnNames(subParts []string) (string, error) {
 		} else if queryPart == ALL {
 			columnNames = ALL
 			break
-		} else if queryPart == TOP {
-			break
-		} else if queryPart == SKIP {
-			break
-		} else if queryPart == FROM {
-			break
-		} else if queryPart == WHERE {
-			break
-		} else if queryPart == ORDERBY {
+		} else if isDelimiter(queryPart) {
 			break
 		} else {
 			if columnNames != "" {
@@ -166,17 +181,7 @@ func getTableName(subParts []string) (string, error) {
 	for _, queryPart := range subParts {
 		if queryPart == "" {
 			continue
-		} else if queryPart == ALL {
-			break
-		} else if queryPart == TOP {
-			break
-		} else if queryPart == SKIP {
-			break
-		} else if queryPart == FROM {
-			break
-		} else if queryPart == WHERE {
-			break
-		} else if queryPart == ORDERBY {
+		} else if isDelimiter(queryPart) {
 			break
 		} else {
 			tableName = queryPart
@@ -198,19 +203,10 @@ func getWhere(subParts []string) (string, error) {
 	logicOp := ""
 
 	for _, queryPart := range subParts {
+
 		if queryPart == "" {
 			continue
-		} else if queryPart == ALL {
-			break
-		} else if queryPart == TOP {
-			break
-		} else if queryPart == SKIP {
-			break
-		} else if queryPart == FROM {
-			break
-		} else if queryPart == WHERE {
-			break
-		} else if queryPart == ORDERBY {
+		} else if isDelimiter(queryPart) {
 			break
 		} else {
 			if left == "" {
@@ -260,14 +256,15 @@ func buildWherePart(left string, op string, right string, logicOp string) (strin
 		return "", fmt.Errorf("invalid query: invalid where clause '%s %s %s'", left, op, right)
 	}
 
-	opStr, ok := OpMap[op]
+	opStr, ok := OpMap[strings.ToLower(op)]
 	if ok == false {
 		return "", fmt.Errorf("invalid query: unknown operator '%s %s %s'", left, op, right)
 	}
 
-	if logicOp != "" && logicOp != AND && logicOp != OR {
+	lowerLogicOp := strings.ToLower(logicOp)
+	if lowerLogicOp != "" && lowerLogicOp != AND && lowerLogicOp != OR {
 		return "", fmt.Errorf("invalid query: unknown logical operator '%s'", logicOp)
 	}
 
-	return fmt.Sprintf("%s %s %s %s ", left, opStr, right, logicOp), nil
+	return fmt.Sprintf("%s %s %s %s ", left, opStr, right, lowerLogicOp), nil
 }
