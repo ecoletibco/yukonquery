@@ -9,7 +9,6 @@ import (
 
 	"github.com/project-flogo/core/activity"
 	"github.com/project-flogo/core/data/metadata"
-	"github.com/project-flogo/core/support/log"
 )
 
 type YukonConnection struct {
@@ -82,9 +81,7 @@ func New(ctx activity.InitContext) (activity.Activity, error) {
 
 func (a *Activity) Cleanup() error {
 
-	if a.connectionId != "" {
-		log.RootLogger().Tracef("cleaning up Yukon Query activity")
-	}
+	a.disconnect()
 
 	return nil
 }
@@ -118,6 +115,10 @@ func (a *Activity) Eval(ctx activity.Context) (done bool, err error) {
 		return false, err
 	}
 
+	// I'm not seeing cleanup being called from my unit test???
+	// puth this here to make sure it works
+	//a.Cleanup()
+
 	return true, nil
 }
 
@@ -139,6 +140,20 @@ func connect(client http.Client, s *Settings) (string, string, error) {
 			return "", "", err
 		}
 		return connectionId, connectionToken, nil
+	}
+}
+
+func (a *Activity) disconnect() {
+
+	if a.connectionId != "" {
+		baseUrl := a.settings.URL
+		uri := baseUrl + fmt.Sprintf("/connections/%s", a.connectionId)
+
+		headers := make(map[string]string)
+		headers["Content-Type"] = "application/json"
+		headers["Token"] = a.connectionToken
+
+		getRestResponse(*a.client, MethodDELETE, uri, headers, nil)
 	}
 }
 

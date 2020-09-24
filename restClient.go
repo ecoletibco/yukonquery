@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	MethodGET  = "GET"
-	MethodPOST = "POST"
-	MethodPUT  = "PUT"
+	MethodGET    = "GET"
+	MethodPOST   = "POST"
+	MethodPUT    = "PUT"
+	MethodDELETE = "DELETE"
 )
 
 func getHttpClient(timeout int) (http.Client, error) {
