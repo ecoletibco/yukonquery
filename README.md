@@ -1,6 +1,6 @@
 
 # Yukon Query Activity 
-This activity allows your Flogo application to execute queries using Yukon(Scribe) connectors. 
+This activity allows Flogo apps to execute queries using Yukon(Scribe) connectors. 
 
 
 ## Installation
@@ -54,7 +54,7 @@ the app imports section.  See [github.com/go-sql-driver/mysql](https://github.co
 ```
 
 ### Named Query
-Query with parameters.  Parameters are referenced using ':', e.g. `:id`, regardless of database
+Query with parameters.  Parameters are referenced using ':', e.g. `:id`, regardless of connector
 ```json
 {
   "id": "yukonquery",

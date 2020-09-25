@@ -2,8 +2,8 @@
 	"name": "yukonquery-activity",
 	"type": "flogo:activity",
 	"version": "0.0.1",
-	"title": "SQL Database Activity",
-  	"description": "Flogo Activity for SQL",
+	"title": "Yukon Query Activity",
+  	"description": "Allows Flogo apps to execute queries using Yukon(Scribe) connectors",
   	"homepage": "https://github.com/project-flogo/contrib/tree/master/activity/sqlquery",
 	"settings": [
 		{
